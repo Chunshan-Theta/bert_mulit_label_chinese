@@ -61,7 +61,7 @@ loss = 1.3868933
 global_step = 587
 ```
 
-分項
+分項 對應的標籤可參考[output/label_map.txt](https://github.com/Chunshan-Theta/bert_mulit_label_chinese/blob/master/output/label_map.txt)
 ```
 class00_f1 = 0.7727272
 class00_precision = 0.68
