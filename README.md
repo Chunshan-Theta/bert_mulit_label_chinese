@@ -51,6 +51,17 @@ num_train_epochs = 5
 
 ### 評估結果
 
+總項
+```
+class_intent_f1 = 0.9022081
+class_precision = 0.9178434
+class_recall = 0.88709676
+class_threshold_ = 0.34673366
+loss = 1.3868933
+global_step = 587
+```
+
+分項
 ```
 class00_f1 = 0.7727272
 class00_precision = 0.68
@@ -206,13 +217,6 @@ class30_f1 = 0.8999999
 class30_precision = 0.9
 class30_recall = 0.9
 class30_threshold = 0.6683417
-
-class_intent_f1 = 0.9022081
-class_precision = 0.9178434
-class_recall = 0.88709676
-class_threshold_ = 0.34673366
-loss = 1.3868933
-global_step = 587
 
 ```
 ------------
