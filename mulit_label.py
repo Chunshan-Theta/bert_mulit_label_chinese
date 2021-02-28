@@ -37,7 +37,7 @@ from tensorflow.python.distribute import distribution_strategy_context
 import tf_metrics
 
 model_tag = "wiki"
-data_dir = f'data-{model_tag}/'
+data_dir = f'data/data-{model_tag}/'
 bert_config_file = 'bert_wwm/bert_config.json'
 task_name = "customized"
 output_dir = f'./output-{model_tag}/'
