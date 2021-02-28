@@ -36,28 +36,28 @@ from tensorflow.python.distribute import distribution_strategy_context
 
 import tf_metrics
 
-
-data_dir = 'data/'
+model_tag = "wiki"
+data_dir = f'data-{model_tag}/'
 bert_config_file = 'bert_wwm/bert_config.json'
 task_name = "customized"
-output_dir = './output/'
+output_dir = f'./output-{model_tag}/'
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 init_checkpoint = 'bert_wwm/bert_model.ckpt'
 do_lower_case = True
-max_seq_length =64
+max_seq_length = 20
 use_tpu = False
 use_one_hot_embeddings = False
 do_train = True
 do_eval = True
 do_predict = True
-train_batch_size = 16
-eval_batch_size = 16
-predict_batch_size = 16
+train_batch_size = 32
+eval_batch_size = 32
+predict_batch_size = 32
 learning_rate = 5e-5
-num_train_epochs = 5
+num_train_epochs = 3
 warmup_proportion = 0.1
-save_checkpoints_steps = 1000
+save_checkpoints_steps = 100
 iterations_per_loop = 1000
 vocab_file = './bert_wwm/vocab.txt'
 master = None
@@ -65,8 +65,7 @@ num_tpu_cores = 8
 crf_loss_method=True
 do_export = False
 export_dir = None
-alpha = 0.5  # adjust weight between slot and intent, loss = alpha*(slot loss) + (1-alpha)*(intent loss)
-
+dataset = ["train.tsv", "train.tsv", "test.tsv"]
 
 
 ####
@@ -145,124 +144,69 @@ class DataProcessor(object):
             reader = csv.reader(f, delimiter="\t", quotechar=quotechar)
             lines = []
             for line in reader:
-                lines.append(line)
+                if len(line) > 0:
+                    lines.append(line)
+
             return lines
 
-        @classmethod
-        def _read_data(cls, input_file):
-            """Reads a BIO data."""
-            with open(input_file) as f:
-                lines = []
-                words = []
-                labels = []
-                for line in f:
-                    contends = line.strip()
-                    word = line.strip().split(' ')[0]
-                    label = line.strip().split(' ')[-1]
-                    if contends.startswith("-DOCSTART-"):
-                        words.append('')
-                        continue
-                    # if len(contends) == 0 and words[-1] == '。':
-                    if len(contends) == 0:
-                        l = ' '.join([label for label in labels if len(label) > 0])
-                        w = ' '.join([word for word in words if len(word) > 0])
-                        lines.append([l, w])
-                        words = []
-                        labels = []
-                        continue
-                    words.append(word)
-                    labels.append(label)
-                return lines
-
-from kashgari.corpus import SMP2018ECDTCorpus
-
-class kashgariProcessor(DataProcessor):
-    def get_train_examples(self,_i):
-        """See base class."""
-        return self._create_examples(self.SMP2018ECDTCorpus2lines(SMP2018ECDTCorpus.load_data(subset_name='train',shuffle= True)),'train') 
-
-    def get_dev_examples(self,_):
-        """See base class."""
-        return self._create_examples(self.SMP2018ECDTCorpus2lines(SMP2018ECDTCorpus.load_data(subset_name='valid',shuffle= True)),'valid') 
-
-    def get_test_examples(self,_):
-        """See base class."""
-        return self._create_examples(self.SMP2018ECDTCorpus2lines(SMP2018ECDTCorpus.load_data(subset_name='test',shuffle= True)),'test') 
-    
-    def SMP2018ECDTCorpus2lines(self,linesLabel):
-        lines, labels = linesLabel
-        re_list = []
-        for line, label in zip(lines, labels):
-            temp = [label,str(''.join(line))]
-            re_list.append(temp)
-        
-        return re_list
-
-        
-
-    def _create_examples(self, lines, set_type):
-        """Creates examples for the training and dev sets."""
-        examples = []
-        for (i, line) in enumerate(lines):
-            guid = "%s-%s" % (set_type, i)
-            label = tokenization.convert_to_unicode(line[0])
-            text = tokenization.convert_to_unicode(line[1])
-            examples.append(InputExample(guid=guid, text=text,label=label))
-        return examples
-
-    def get_labels_info(self):
-        labels = []
-        all_labels = []
-        label_map = {}
-        lines = self.SMP2018ECDTCorpus2lines(SMP2018ECDTCorpus.load_data(subset_name='train',shuffle= True))
-
-        for line in lines:
-            text = line[1]
-            label = line[0]
-            if label not in labels:
+    @classmethod
+    def _read_data(cls, input_file):
+        """Reads a BIO data."""
+        with open(input_file) as f:
+            lines = []
+            words = []
+            labels = []
+            for line in f:
+                contends = line.strip()
+                word = line.strip().split(' ')[0]
+                label = line.strip().split(' ')[-1]
+                if contends.startswith("-DOCSTART-"):
+                    words.append('')
+                    continue
+                # if len(contends) == 0 and words[-1] == '。':
+                if len(contends) == 0:
+                    l = ' '.join([label for label in labels if len(label) > 0])
+                    w = ' '.join([word for word in words if len(word) > 0])
+                    lines.append([l, w])
+                    words = []
+                    labels = []
+                    continue
+                words.append(word)
                 labels.append(label)
-            all_labels.append(label) # for cal intent_weights
-
-        labels = sorted(set(labels), reverse=False)
-        num_labels = sorted(set(labels), reverse=True).__len__()
-
-        intent_class_weights = class_weight.compute_class_weight('balanced',
-                                                                 labels,
-                                                                 all_labels)
+            return lines
 
 
-        label_map_file = os.path.join('output', "label_map.txt")
-        with tf.gfile.GFile(label_map_file, "w") as writer:
-            for (i, label) in enumerate(labels):
-                label_map[label] = i
-                writer.write("{}:{}\n".format(i, label))
-
-
-        return label_map, num_labels, intent_class_weights
 class customizedProcessor(DataProcessor):
+
     def get_train_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train-kashgari.tsv")), "train")
+            self._read_tsv(os.path.join(data_dir, dataset[0])), "train")
 
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev-kashgari.tsv")), "dev")
+            self._read_tsv(os.path.join(data_dir, dataset[1])), "dev")
 
     def get_test_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "test-kashgari.tsv")), "test")
+            self._read_tsv(os.path.join(data_dir, dataset[2])), "test")
 
     def get_labels_info(self):
         labels = []
         label_map = {}
         label_map_file = os.path.join( output_dir, "label_map.txt")
-        lines = self._read_tsv(os.path.join( data_dir, "train-kashgari.tsv"))
+        lines = self._read_tsv(os.path.join( data_dir, dataset[0]))
 
         for line in lines:
-            line_of_labels = line[0].strip("[]").split(', ')
+            if len(line) == 0:
+                continue
+            try:
+                line_of_labels = line[0].strip("[]").split(', ')
+            except IndexError as e:
+                print(f"IndexError:{line}")
+                raise e
             for label in line_of_labels:
                 labels.append(label)
 
@@ -292,9 +236,13 @@ class customizedProcessor(DataProcessor):
         examples = []
         for (i, line) in enumerate(lines):
             guid = "%s-%s" % (set_type, i)
-            label = tokenization.convert_to_unicode(line[0])
-            text = tokenization.convert_to_unicode(line[1])
-            examples.append(InputExample(guid=guid, text=text, label=label))
+            try:
+                label = tokenization.convert_to_unicode(line[0])
+                text = tokenization.convert_to_unicode(line[1])
+                examples.append(InputExample(guid=guid, text=text, label=label))
+            except IndexError as e:
+                print(line)
+                raise e
         return examples
 
 
@@ -641,10 +589,12 @@ def model_fn_builder(bert_config, num_labels, intent_class_weights, init_checkpo
             train_op = optimization.create_optimizer(
                 total_loss, learning_rate, num_train_steps, num_warmup_steps, use_tpu)
 
+            logging_hook = tf.train.LoggingTensorHook({"loss": total_loss}, every_n_iter=10)
             output_spec = tf.contrib.tpu.TPUEstimatorSpec(
                 mode=mode,
                 loss=total_loss,
                 train_op=train_op,
+                training_hooks=[logging_hook],
                 scaffold_fn=scaffold_fn)
         elif mode == tf.estimator.ModeKeys.EVAL:
             def metric_fn( label_ids, decode_tags, probabilities, input_mask):
@@ -764,8 +714,7 @@ def main():
     tf.logging.set_verbosity(tf.logging.INFO)
 
     processors = {
-        "customized": customizedProcessor,
-        "kashgari":kashgariProcessor
+        "customized": customizedProcessor
     }
 
     tokenization.validate_case_matches_checkpoint( do_lower_case,
@@ -859,6 +808,7 @@ def main():
             drop_remainder=False,
             num_labels=num_labels)
         estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
+
 
     if do_eval:
         eval_examples = processor.get_dev_examples(data_dir)
@@ -986,7 +936,7 @@ def main():
                 intent_compare = 'O' if pre_intent == label_intent else 'X'
                 frame_O_X = 'O' if pre_intent == label_intent else 'X'
                 output_line = "\t".join(
-                    [frame_O_X, intent_compare, label_intent, pre_intent, sentence]) + "\n"
+                    [item["intent_predicted"], label_intent, pre_intent, sentence]) + "\n"
                 writer.write(output_line)
                 num_written_lines += 1
             assert num_written_lines == num_actual_predict_examples
